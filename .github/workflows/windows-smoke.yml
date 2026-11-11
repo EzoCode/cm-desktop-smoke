@@ -1,0 +1,24 @@
+name: Windows installer smoke test
+on:
+  workflow_dispatch:
+    inputs:
+      url: {description: 'Installer URL', required: true}
+      sha256: {description: 'Expected SHA-256', required: true}
+      build: {description: 'Build number', required: true}
+permissions: {contents: read}
+jobs:
+  smoke:
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install and launch
+        shell: pwsh
+        env:
+          INSTALLER_URL: ${{ inputs.url }}
+          INSTALLER_SHA256: ${{ inputs.sha256 }}
+          INSTALLER_BUILD: ${{ inputs.build }}
+        run: ./smoke.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: windows-smoke-evidence, path: evidence, retention-days: 30}
