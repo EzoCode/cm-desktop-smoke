@@ -28,11 +28,11 @@ Save
 $Game=Join-Path $Dir 'CristalMemoria.exe'
 $Runs=@()
 # 1. the game's own capture bench (isolated sandbox profile) with each renderer the runner may support
-foreach ($Driver in @('d3d12','vulkan','opengl3')) {
-  $Png=Join-Path $Evidence "village-$Driver.png"
+foreach ($Driver in @('default','d3d12','default','opengl3')) {
+  $Png=Join-Path $Evidence "village-$Driver-$($Runs.Count).png"
   $env:CM_CAPTURE=$Png; $env:CM_LANGUE='en'
   $Info=[System.Diagnostics.ProcessStartInfo]::new($Game)
-  $GameArgs=if ($Driver -eq 'opengl3') { @('--rendering-method','gl_compatibility','--rendering-driver','opengl3') } else { @('--rendering-driver',$Driver) }
+  $GameArgs=if ($Driver -eq 'opengl3') { @('--rendering-method','gl_compatibility','--rendering-driver','opengl3') } elseif ($Driver -eq 'default') { @() } else { @('--rendering-driver',$Driver) }
   foreach ($A in $GameArgs) { $Info.ArgumentList.Add($A) }
   $Info.WorkingDirectory=$Dir; $Info.UseShellExecute=$false; $Info.RedirectStandardOutput=$true; $Info.RedirectStandardError=$true
   $Proc=[System.Diagnostics.Process]::Start($Info)
@@ -42,7 +42,7 @@ foreach ($Driver in @('d3d12','vulkan','opengl3')) {
   $TimedOut=-not $Proc.HasExited
   if ($TimedOut) { $Proc.Kill($true); $Proc.WaitForExit() }
   $Log=$Out.GetAwaiter().GetResult()+"`n--- stderr ---`n"+$Err.GetAwaiter().GetResult()
-  $Log | Set-Content (Join-Path $Evidence "game-$Driver.log")
+  $Log | Set-Content (Join-Path $Evidence "game-$Driver-$($Runs.Count).log")
   $Runs+=[ordered]@{driver=$Driver; exit=$Proc.ExitCode; timed_out=$TimedOut; capture=(Test-Path $Png); capture_bytes=$(if (Test-Path $Png) {(Get-Item $Png).Length} else {0}); script_errors=([regex]::Matches($Log,'SCRIPT ERROR:|Parse Error:')).Count}
   $Result.runs=$Runs; Save
   if (Test-Path $Png) { break }
@@ -50,7 +50,11 @@ foreach ($Driver in @('d3d12','vulkan','opengl3')) {
 Remove-Item Env:CM_CAPTURE
 # 2. the installed launcher, as a player starts it from the shortcut
 $L=Start-Process (Join-Path $Dir 'LancerCristalMemoria.exe') -WorkingDirectory $Dir -PassThru
-Start-Sleep 60
+Start-Sleep 20
+$Result.launcher_at_20s=@(Get-Process | Where-Object { $_.ProcessName -in 'CristalMemoria','LancerCristalMemoria' } | ForEach-Object { $_.ProcessName })
+try { Shot 'desktop-launcher-20s.png' } catch {}
+Start-Sleep 40
+$Result.launcher_exited=$L.HasExited; if ($L.HasExited) { $Result.launcher_exit=$L.ExitCode }
 $Result.launcher_children=@(Get-Process | Where-Object { $_.ProcessName -in 'CristalMemoria','LancerCristalMemoria' } | ForEach-Object { "$($_.ProcessName) $($_.MainWindowTitle)" })
 try { Shot 'desktop-launcher.png' } catch { $Result.launcher_shot_error="$_" }
 Get-Process | Where-Object { $_.ProcessName -in 'CristalMemoria','LancerCristalMemoria' } | Stop-Process -Force -ErrorAction SilentlyContinue
