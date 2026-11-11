@@ -28,7 +28,7 @@ Save
 $Game=Join-Path $Dir 'CristalMemoria.exe'
 $Runs=@()
 # 1. the game's own capture bench (isolated sandbox profile) with each renderer the runner may support
-foreach ($Driver in @('default','d3d12','default','opengl3')) {
+foreach ($Driver in @('default','default','default','default','default','opengl3')) {
   $Png=Join-Path $Evidence "village-$Driver-$($Runs.Count).png"
   $env:CM_CAPTURE=$Png; $env:CM_LANGUE='en'
   $Info=[System.Diagnostics.ProcessStartInfo]::new($Game)
@@ -45,9 +45,11 @@ foreach ($Driver in @('default','d3d12','default','opengl3')) {
   $Log | Set-Content (Join-Path $Evidence "game-$Driver-$($Runs.Count).log")
   $Runs+=[ordered]@{driver=$Driver; exit=$Proc.ExitCode; timed_out=$TimedOut; capture=(Test-Path $Png); capture_bytes=$(if (Test-Path $Png) {(Get-Item $Png).Length} else {0}); script_errors=([regex]::Matches($Log,'SCRIPT ERROR:|Parse Error:')).Count}
   $Result.runs=$Runs; Save
-  if (Test-Path $Png) { break }
+  if ($Driver -eq 'opengl3' -and (Test-Path $Png)) { break }
 }
 Remove-Item Env:CM_CAPTURE
+try { Get-WinEvent -FilterHashtable @{LogName='Application';Id=1000} -MaxEvents 12 -ErrorAction Stop | ForEach-Object { $_.TimeCreated.ToString('s')+' '+($_.Message -replace '\s+',' ') } | Set-Content (Join-Path $Evidence 'crash-events.txt') } catch { 'no crash event' | Set-Content (Join-Path $Evidence 'crash-events.txt') }
+$Result.default_ok=@($Runs | Where-Object { $_.driver -eq 'default' -and $_.capture }).Count; $Result.default_tries=@($Runs | Where-Object { $_.driver -eq 'default' }).Count
 # 2. the installed launcher, as a player starts it from the shortcut
 $L=Start-Process (Join-Path $Dir 'LancerCristalMemoria.exe') -WorkingDirectory $Dir -PassThru
 Start-Sleep 20
